@@ -1,4 +1,4 @@
-# node-emberplus
+# emberlib 
 
 This is a conversion of javascript/typescript [Ember+ library](https://github.com/dufourgilles/node-emberplus) in GO.
 An implementation of [Lawo's Ember+](https://github.com/Lawo/ember-plus) control protocol.
