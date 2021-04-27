@@ -29,8 +29,8 @@ const (
 )
 
 type TupleDescription struct {
-	tupleType ParameterType
-	name      string
+	Type ParameterType
+	Name      string
 }
 
 type FunctionContents struct {
@@ -44,12 +44,16 @@ type FunctionContents struct {
 var FunctionApplication = asn1.Application(19)
 var TupleDescriptionApplication = asn1.Application(21)
 
+func NewArgument(t ParameterType, name string) *TupleDescription {
+	return &TupleDescription{Type: t, Name: name}
+}
+
 func NewFunctionContents() EmberContents {
 	return &FunctionContents{}
 }
 
 func NewFunction(number int) *Element {
-	return NewElement(NodeApplication, number, NewFunctionContents)
+	return NewElement(FunctionApplication, number, NewFunctionContents)
 }
 
 func (contents *FunctionContents) SetIdentifier(identifer string) {
@@ -116,6 +120,36 @@ func decodeTupleDescriptions(reader *asn1.ASNReader) ([]*TupleDescription, error
 	return arguments, nil
 }
 
+func encodeTupleDescriptions(ctxt uint8, tuples []*TupleDescription, writer *asn1.ASNWriter) errors.Error {
+	err := writer.StartSequence(ctxt)
+	if err != nil {
+		return errors.Update(err)
+	}
+	err = writer.StartSequence(asn1.EMBER_SEQUENCE)
+	if err != nil {
+		return errors.Update(err)
+	}
+	for _, tuple := range tuples {
+		err = writer.StartSequence(asn1.Context(0))
+		if err != nil {
+			return errors.Update(err)
+		}
+		err = tuple.Encode(writer)
+		if err != nil {
+			return errors.Update(err)
+		}
+		err = writer.EndSequence()
+	if err != nil {
+		return errors.Update(err)
+	}
+	}
+	err = writer.EndSequence()
+	if err != nil {
+		return errors.Update(err)
+	}
+	return writer.EndSequence()
+}
+
 func (tuple *TupleDescription) Decode(reader *asn1.ASNReader) errors.Error {
 	_, tupleReader, err := reader.ReadSequenceStart(TupleDescriptionApplication)
 	if err != nil {
@@ -136,14 +170,14 @@ func (tuple *TupleDescription) Decode(reader *asn1.ASNReader) errors.Error {
 			if err != nil {
 				return errors.Update(err)
 			}
-			tuple.tupleType = ParameterType(t)
+			tuple.Type = ParameterType(t)
 			break
 		case asn1.Context(1):
 			name, err := ctxtReader.ReadString()
 			if err != nil {
 				return errors.Update(err)
 			}
-			tuple.name = name
+			tuple.Name = name
 			break
 		default:
 			return errors.New("Unknown TupleDescription tag %d", peek)
@@ -170,7 +204,7 @@ func (tuple *TupleDescription) Encode(writer *asn1.ASNWriter) errors.Error {
 	if err != nil {
 		return errors.Update(err)
 	}
-	err = writer.WriteInt(int(tuple.tupleType))
+	err = writer.WriteInt(int(tuple.Type))
 	if err != nil {
 		return errors.Update(err)
 	}
@@ -183,7 +217,7 @@ func (tuple *TupleDescription) Encode(writer *asn1.ASNWriter) errors.Error {
 	if err != nil {
 		return errors.Update(err)
 	}
-	err = writer.WriteString(tuple.name)
+	err = writer.WriteString(tuple.Name)
 	if err != nil {
 		return errors.Update(err)
 	}
@@ -280,27 +314,14 @@ func (fc *FunctionContents) Encode(writer *asn1.ASNWriter) errors.Error {
 	}
 
 	if len(fc.arguments) > 0 {
-		writer.StartSequence(asn1.Context(2))
-		for _, tuple := range fc.arguments {
-			err = tuple.Encode(writer)
-			if err != nil {
-				return errors.Update(err)
-			}
-		}
-		err = writer.EndSequence()
+		err = encodeTupleDescriptions(asn1.Context(2), fc.arguments, writer)
 		if err != nil {
 			return errors.Update(err)
 		}
 	}
+	
 	if len(fc.result) > 0 {
-		writer.StartSequence(asn1.Context(3))
-		for _, tuple := range fc.result {
-			err = tuple.Encode(writer)
-			if err != nil {
-				return errors.Update(err)
-			}
-		}
-		err = writer.EndSequence()
+		err = encodeTupleDescriptions(asn1.Context(3), fc.result, writer)
 		if err != nil {
 			return errors.Update(err)
 		}
