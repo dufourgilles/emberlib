@@ -18,6 +18,10 @@ func NewTree() *RootElement {
 	}
 }
 
+func (element *RootElement) AddListener(listener Listener) {
+	element.listeners[&listener] = listener
+}
+
 func NewRoot() *RootElement {
 	return &RootElement{listeners: nil, RootElementCollection: make(map[int]*Element)}
 }
@@ -78,6 +82,9 @@ func (root *RootElement) Decode(reader *asn1.ASNReader) errors.Error {
 		}
 	}
 	err = reader.ReadSequenceEnd()
+	for _,listner := range(root.listeners) {
+		listner(root, err)
+	}
 	return errors.Update(err)
 }
 
@@ -109,5 +116,11 @@ func (r *RootElement) GetDirectoryMsg(listener Listener) (*RootElement, errors.E
 	root := NewRoot()
 	cmd := NewCommand(COMMAND_GETDIRECTORY)
 	root.AddElement(cmd)
+	r.listeners[&listener] = listener
 	return root, nil
+}
+
+func (r *RootElement) RemoveListener(listener Listener) errors.Error {
+	delete(r.listeners, &listener)
+	return nil
 }

@@ -64,6 +64,14 @@ func (element *Element) CreateContent() interface{} {
 	return element.contents
 }
 
+func (element *Element) AddListener(listener Listener) {
+	element.listeners[&listener] = listener
+}
+
+func (element *Element) RemoveListener(listener Listener) {
+	delete(element.listeners, &listener)
+}
+
 func (element *Element) GetContent() interface{} {
 	return element.contents
 }

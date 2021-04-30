@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/dufourgilles/emberlib/errors"
 	"github.com/dufourgilles/emberlib/socket"
 )
 
@@ -42,7 +43,7 @@ func TestEncodeMessage(t *testing.T) {
 	expectedResponse := []uint8{254, 0, 14, 0, 1, 192, 1, 2, 31, 2, 1, 2, 3, 4, 163, 214, 255}
 	frame, err := frameList.GetAt(0)
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Errorf(err.Message.Error())
 		return
 	}
 	frameBytes := make([]byte, frame.Len())
@@ -59,15 +60,15 @@ func TestEncodeMessage(t *testing.T) {
 
 type TestHandler struct {
 	data []byte
-	err  error
+	err  errors.Error
 }
 
-func (h *TestHandler) packetHandler(packet []byte) error {
+func (h *TestHandler) packetHandler(packet []byte) errors.Error {
 	fmt.Println("Received packet")
 	h.data = packet
 	return nil
 }
-func (h *TestHandler) errorHandler(err error) {
+func (h *TestHandler) errorHandler(err errors.Error) {
 	h.err = err
 }
 
@@ -80,7 +81,7 @@ func TestDecoder(t *testing.T) {
 		h.packetHandler,
 		h.errorHandler)
 	frame := []uint8{254, 0, 14, 0, 1, 192, 1, 2, 31, 2, 1, 2, 3, 4, 163, 214, 255}
-	decoder.DecodeBuffer(frame)
+	decoder.DecodeBuffer(len(frame), frame)
 	if h.err != nil {
 		t.Error(h.err)
 	}

@@ -52,13 +52,7 @@ func (cc *CommandContents) GetFieldFlags() FieldFlags {
 }
 
 func (cc *CommandContents) Encode(writer *asn1.ASNWriter) errors.Error {
-	if cc.fieldFlags == FieldFlags(DefaultFieldFlags) {
-		return nil
-	}
-	err := writer.StartSequence(asn1.Context(1))
-	err = writer.WriteInt(int(cc.fieldFlags))
-	err = writer.EndSequence()
-	return err
+	return writer.WriteInt(int(cc.fieldFlags))
 }
 
 func (cc *CommandContents) Decode(reader *asn1.ASNReader) errors.Error {

@@ -3,8 +3,9 @@ package socket
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
+
+	"github.com/dufourgilles/emberlib/errors"
 )
 
 const S101_BOF = 0xFE
@@ -98,8 +99,27 @@ func CalculateCRCCE(reader *bytes.Reader) uint16 {
 	return crc;
 }
 
+func GetKeepaliveRequest() *bytes.Buffer {
+	packet := &bytes.Buffer{}
+	packet.WriteByte(S101_BOF);
+	packet.WriteByte(SLOT);
+	packet.WriteByte(MSG_EMBER);
+	packet.WriteByte(CMD_KEEPALIVE_REQ);
+	packet.WriteByte(VERSION);
+	return finalizeBuffer(packet);
+}
 
-func makeBERFrame(flags uint8, data []byte) bytes.Buffer {
+func GetKeepAliveResponse() *bytes.Buffer {
+	packet := &bytes.Buffer{}
+	packet.WriteByte(S101_BOF);
+	packet.WriteByte(SLOT);
+	packet.WriteByte(MSG_EMBER);
+	packet.WriteByte(CMD_KEEPALIVE_RESP);
+	packet.WriteByte(VERSION);
+	return finalizeBuffer(packet);
+}
+
+func makeBERFrame(flags uint8, data []byte) *bytes.Buffer {
 	var frame bytes.Buffer
 	frame.WriteByte(S101_BOF);
 	frame.WriteByte(SLOT);
@@ -112,10 +132,10 @@ func makeBERFrame(flags uint8, data []byte) bytes.Buffer {
 	frame.WriteByte(DTD_VERSION_MINOR);
 	frame.WriteByte(DTD_VERSION_MAJOR);
 	frame.Write(data);
-	return finalizeBuffer(frame);
+	return finalizeBuffer(&frame);
 }
 
-func finalizeBuffer(smartbuf bytes.Buffer) bytes.Buffer {
+func finalizeBuffer(smartbuf *bytes.Buffer) *bytes.Buffer {
 	reader := bytes.NewReader(smartbuf.Bytes())
 	// skip first byte
 	reader.ReadByte()
@@ -151,7 +171,7 @@ func ValidateFrame(buf *bytes.Reader) bool {
 type S101FrameList struct {
 	numFrames int
 	increment int
-	frames []bytes.Buffer
+	frames []*bytes.Buffer
 }
 
 
@@ -160,7 +180,7 @@ func NewS101FrameList(increment int) *S101FrameList {
 	if increment == 0 {
 		increment = 1
 	}
-	list.frames = make([]bytes.Buffer, increment)
+	list.frames = make([]*bytes.Buffer, increment)
 	list.numFrames = 0
 	list.increment = increment
 	return &list
@@ -170,14 +190,14 @@ func (s *S101FrameList)Size() int {
 	return s.numFrames
 }
 
-func (s *S101FrameList)GetAt(i int) (bytes.Buffer, error) {
+func (s *S101FrameList)GetAt(i int) (*bytes.Buffer, errors.Error) {
 	if (i >= s.numFrames || i < 0) {
-		return bytes.Buffer{}, errors.New("out of bound")
+		return &bytes.Buffer{}, errors.New("out of bound")
 	}
 	return s.frames[i], nil
 }
 
-func (s *S101FrameList)GetBytesAt(i int) ([]byte, error) {
+func (s *S101FrameList)GetBytesAt(i int) ([]byte, errors.Error) {
 	if (i >= s.numFrames || i < 0) {
 		return nil, errors.New("out of bound")
 	}
@@ -186,9 +206,9 @@ func (s *S101FrameList)GetBytesAt(i int) ([]byte, error) {
 	return res, nil
 }
 
-func (s *S101FrameList)addFrame(frame bytes.Buffer) {
+func (s *S101FrameList)addFrame(frame *bytes.Buffer) {
 	if s.numFrames >= len(s.frames) {
-		newFrames := make([]bytes.Buffer, s.numFrames + s.increment)
+		newFrames := make([]*bytes.Buffer, s.numFrames + s.increment)
 		for j:= 0; j < int(s.numFrames); j++ {
 			newFrames[j] = s.frames[j]
 		}
@@ -260,8 +280,8 @@ func (h *EmberFrameHeader)Read(reader *bytes.Reader) error {
 	return binary.Read(reader, binary.LittleEndian, h)
 }
 
-type PacketHandler func([]byte) error
-type ErrorHandler func(error)
+type PacketHandler func([]byte) errors.Error
+type ErrorHandler func(errors.Error)
 
 type S101Decoder struct {
 	escaped bool
@@ -287,8 +307,8 @@ func NewS101Decoder(
 	return &s101Decoder
 }
 
-func (decoder *S101Decoder)DecodeBuffer(buf []byte) {
-	for i := 0; i <len(buf); i++ {
+func (decoder *S101Decoder)DecodeBuffer( bufLen int, buf []byte) {
+	for i := 0; i < bufLen; i++ {
 		b := buf[i];
 		if (decoder.escaped) {
 			decoder.inbuf.WriteByte(b ^ S101_XOR);
@@ -299,6 +319,8 @@ func (decoder *S101Decoder)DecodeBuffer(buf []byte) {
 			decoder.inbuf.Reset();
 			decoder.escaped = false;
 		} else if b == S101_EOF {
+			fmt.Printf("End of Frame - frame size %d", decoder.inbuf.Len())
+			fmt.Println(decoder.inbuf)
 			buffer := make([]byte, decoder.inbuf.Len())
 			decoder.inbuf.Read(buffer)
 			decoder.inbuf.Reset();
@@ -312,7 +334,8 @@ func (decoder *S101Decoder)DecodeBuffer(buf []byte) {
 	}
 }
 
-func (decoder *S101Decoder)HandleFrame(buffer []byte) error {
+func (decoder *S101Decoder)HandleFrame(buffer []byte) errors.Error {
+	fmt.Printf("Frame parsing. total length %d\n", len(buffer))
 	if !ValidateFrame(bytes.NewReader(buffer)) {
 		return errors.New("dropping frame with invalid CRC")
 	}
@@ -326,18 +349,18 @@ func (decoder *S101Decoder)HandleFrame(buffer []byte) error {
 	frame := bytes.NewReader(buffer[:len(buffer) - 2])
 	slot,err = frame.ReadByte()
 	if err != nil {
-		return err
+		return errors.NewError(err)
 	}
 	message,err = frame.ReadByte()
 	if err != nil {
-		return err
+		return errors.NewError(err)
 	}
 	if (slot != SLOT || message != MSG_EMBER) {
 		return errors.New(fmt.Sprintf("dropping frame (not an ember frame; slot=%d, msg=%d)", slot, message))
 	}
 	command,err = frame.ReadByte()
 	if err != nil {
-		return err
+		return errors.NewError(err)
 	}
 	if command == CMD_KEEPALIVE_REQ {
 		return decoder.keepAliveReqHandler(buffer)
@@ -350,10 +373,11 @@ func (decoder *S101Decoder)HandleFrame(buffer []byte) error {
 	}
 }
 
-func (decoder *S101Decoder)HandleEmberFrame(frame *bytes.Reader) error {
+func (decoder *S101Decoder)HandleEmberFrame(frame *bytes.Reader) errors.Error {
+	fmt.Printf("Ember Frame parsing. Total size %d\n", frame.Len())
 	var emberFrame EmberFrame
 	err := emberFrame.Header.Read(frame)
-	if err != nil { return err }
+	if err != nil { return errors.NewError(err) }
 	
 	if emberFrame.Header.Version != VERSION {
 		// ok to accept different version
@@ -368,17 +392,21 @@ func (decoder *S101Decoder)HandleEmberFrame(frame *bytes.Reader) error {
 	}
 
 	if emberFrame.Header.Flags & FLAG_FIRST_MULTI_PACKET != 0 {
+		fmt.Println("Ember Frame first multi packet")
 		decoder.emberbuf.Reset()
 	}
 
 	if emberFrame.Header.Flags & FLAG_EMPTY_PACKET == 0 {
+		fmt.Printf("Ember Frame NOT empty packet. Size %d to %d\n", frame.Len(), decoder.emberbuf.Len())
 		frame.WriteTo(&decoder.emberbuf)
 	}
 	if emberFrame.Header.Flags & FLAG_LAST_MULTI_PACKET != 0 {
+		fmt.Printf("Ember Frame last packet. Total message size %d\n", decoder.emberbuf.Len())
 		emberPacket := make([]byte, decoder.emberbuf.Len())
 		decoder.emberbuf.Read(emberPacket)
 		decoder.emberbuf.Reset()
 		decoder.emberPacketHandler(emberPacket)
 	}
+	fmt.Println("Ember Frame parsing complete")
 	return nil
 }
