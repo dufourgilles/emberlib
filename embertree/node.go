@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/errors"
 
 	"github.com/dufourgilles/emberlib/asn1"
@@ -200,4 +202,30 @@ func (nc *NodeContents) Decode(reader *asn1.ASNReader) errors.Error {
 		}
 	}
 	return nil
+}
+
+func (contents *NodeContents) ToString() string {
+	identifier := ""
+	description := ""
+	isRoot := ""
+	isOnline := ""
+	if contents.identifier.isSet {
+		identifier,_ = contents.GetIdentifier()
+	}
+	if contents.description.isSet {
+		description,_ = contents.GetDescription()
+	}
+	val,err := contents.GetIsRoot()
+	if val {
+		isRoot = "true"
+	} else if err == nil {
+		isRoot = "false"
+	}
+	val,err = contents.GetIsOnline()
+	if val {
+		isOnline = "true"
+	} else if err == nil {
+		isOnline = "false"
+	}
+	return fmt.Sprintf("{  identifier: %s,\n  description: %s,\n  isRoot: %s,\n  isOnline: %s\n}", identifier, description, isRoot, isOnline)
 }

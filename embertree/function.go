@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/errors"
 
 	"github.com/dufourgilles/emberlib/asn1"
@@ -328,4 +330,17 @@ func (fc *FunctionContents) Encode(writer *asn1.ASNWriter) errors.Error {
 	}
 	writer.EndSequence()
 	return nil
+}
+
+func (fc *FunctionContents) ToString() string {
+	str:= ""
+	valStr,err := fc.GetIdentifier()
+	if err == nil {
+		str = fmt.Sprintf("%s  identifier: %s\n",str, valStr)
+	}
+	valStr,err = fc.GetDescription()
+	if err == nil {
+		str = fmt.Sprintf("%s  description: %s\n",str, valStr)
+	}
+	return fmt.Sprintf("{\n%s}\n", str)
 }

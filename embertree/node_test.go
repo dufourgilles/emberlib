@@ -56,7 +56,7 @@ type listenerTest struct {
 	err errors.Error
 }
 
-func (l *listenerTest) listener(element interface{}, err errors.Error) {
+func (l *listenerTest) Receive(element interface{}, err errors.Error) {
 	l.el = element
 	l.err = err
 }
@@ -65,7 +65,7 @@ func TestNodeListener(t *testing.T) {
 	listener := listenerTest{el: nil, err: nil}
 	nodeID := int(10)
 	node := embertree.NewNode(nodeID)
-	node.GetDirectoryMsg(listener.listener)
+	node.GetDirectoryMsg(&listener)
 	nodeContents := node.CreateContent().(*embertree.NodeContents)
 	nodeContents.SetIdentifier("gdnet")
 	node.SetContents(nodeContents)

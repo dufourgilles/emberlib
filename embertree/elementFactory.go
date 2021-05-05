@@ -1,8 +1,6 @@
 package embertree
 
 import (
-	"fmt"
-
 	"github.com/dufourgilles/emberlib/asn1"
 	"github.com/dufourgilles/emberlib/errors"
 )
@@ -34,6 +32,7 @@ func decodeContents(element *Element, ctxt uint8, reader *asn1.ASNReader) (inter
 	var (
 		contents interface{}
 	)
+	element.logger.Debug("Decoding contents for %d/%s.\n", element.tag, Path2String(element.GetPath()))
 	_, contentReader, err := reader.ReadSequenceStart(ctxt)
 	if err != nil {
 		return nil, errors.Update(err)
@@ -82,6 +81,7 @@ func decodeContents(element *Element, ctxt uint8, reader *asn1.ASNReader) (inter
 		return nil, e
 	}
 	err = contentReader.ReadSequenceEnd()
+	element.logger.Debugln(contents)
 	return contents, err
 }
 
@@ -96,6 +96,7 @@ func decodeChildren(ctxt uint8, element *Element, reader *asn1.ASNReader) errors
 		if err != nil {
 			return errors.Update(err)
 		}
+		element.logger.Debug("Decoding Element.\n")
 		child, err := DecodeElement(childReader)
 		if err != nil {
 			return errors.Update(err)
@@ -122,7 +123,7 @@ func DecodeElement(reader *asn1.ASNReader) (*Element, errors.Error) {
 		path     asn1.RelativeOID
 		number   int
 		contents interface{}
-	)
+	)	
 	tag, err := reader.Peek()
 	if err != nil {
 		return nil, errors.Update(err)
@@ -168,7 +169,6 @@ func DecodeElement(reader *asn1.ASNReader) (*Element, errors.Error) {
 		if b == asn1.Context(1) {
 			contents, err = decodeContents(element, b, elementReader)
 			if err != nil {
-				fmt.Printf("Failed to decode tag %d number %d. %s", tag, number, err.Message)
 				return nil, errors.Update(err)
 			}
 			element.SetContents(contents)

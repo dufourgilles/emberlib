@@ -1,6 +1,9 @@
 package embertree
 
 import (
+	"fmt"
+
+	. "github.com/dufourgilles/emberlib/logger"
 	"github.com/dufourgilles/emberlib/asn1"
 	"github.com/dufourgilles/emberlib/errors"
 )
@@ -8,6 +11,7 @@ import (
 type EmberContents interface {
 	Encode(writer *asn1.ASNWriter) errors.Error
 	Decode(reader *asn1.ASNReader) errors.Error
+	ToString() string
 }
 
 type ContentCreator func() EmberContents
@@ -21,18 +25,25 @@ type EmberObject interface {
 	GetTag() uint8
 }
 
-type Listener func(interface{}, errors.Error)
+type Listener interface {
+	Receive(interface{}, errors.Error)
+}
+
+type ListeningNode interface {
+	AddListener(listener Listener)
+	RemoveListener(listener Listener)
+}
 
 type Element struct {
 	Number          int
 	tag             uint8
 	path            asn1.RelativeOID
-	children        map[int]*Element
+	Children        map[int]*Element
 	parent          *Element
 	contents        EmberContents
 	contentsCreator ContentCreator
-	listeners       map[*Listener]Listener
-
+	listeners       map[Listener]Listener
+	logger Logger
 	// for qualified element
 	isQualified bool
 
@@ -49,11 +60,18 @@ func NewElement(tag uint8, number int, contentsCreator ContentCreator) *Element 
 		tag:             tag,
 		contents:        nil,
 		parent:          nil,
-		children:        make(map[int]*Element),
+		Children:        make(map[int]*Element),
 		isMatrix:        false,
 		isQualified:     false,
 		contentsCreator: contentsCreator,
-		listeners:       make(map[*Listener]Listener)}
+		logger: NewNullLogger(),
+		listeners:       make(map[Listener]Listener)}
+}
+
+func (element *Element)SetLogger(logger Logger) {
+	if logger != nil {
+		element.logger = logger
+	}
 }
 
 func (element *Element) CreateContent() interface{} {
@@ -65,14 +83,14 @@ func (element *Element) CreateContent() interface{} {
 }
 
 func (element *Element) AddListener(listener Listener) {
-	element.listeners[&listener] = listener
+	element.listeners[listener] = listener
 }
 
 func (element *Element) RemoveListener(listener Listener) {
-	delete(element.listeners, &listener)
+	delete(element.listeners, listener)
 }
 
-func (element *Element) GetContent() interface{} {
+func (element *Element) GetContent() EmberContents {
 	return element.contents
 }
 
@@ -81,14 +99,14 @@ func (element *Element) GetTag() uint8 {
 }
 
 func (element *Element) AddChild(child *Element) errors.Error {
-	element.children[child.Number] = child
+	element.Children[child.Number] = child
 	child.SetParent(element)
 	return nil
 }
 
 func (element *Element) updateListeners(err errors.Error) {
 	for _, listener := range element.listeners {
-		listener(element, err)
+		listener.Receive(element, err)
 	}
 }
 func (element *Element) SetContents(contents interface{}) errors.Error {
@@ -106,8 +124,8 @@ func (element *Element) Update(newElement *Element) errors.Error {
 	if content != nil {
 		element.contents = content.(EmberContents)
 	}
-	for number, newChild := range newElement.children {
-		child := element.children[number]
+	for number, newChild := range newElement.Children {
+		child := element.Children[number]
 		if child == nil {
 			err = element.AddChild(newChild)
 		} else {
@@ -138,7 +156,6 @@ func (element *Element) GetParent() (*Element, errors.Error) {
 }
 
 func (element *Element) encode(writer *asn1.ASNWriter, asChild bool) errors.Error {
-	//fmt.Printf("Starting element seq %d\n", element.seqID)
 	err := writer.StartSequence(element.tag)
 	if err != nil {
 		return errors.Update(err)
@@ -191,7 +208,7 @@ func (element *Element) encode(writer *asn1.ASNWriter, asChild bool) errors.Erro
 
 	if !asChild {
 		//Encode Children
-		if len(element.children) > 0 {
+		if len(element.Children) > 0 {
 			err = writer.StartSequence(asn1.Context(2))
 			if err != nil {
 				return errors.Update(err)
@@ -234,7 +251,7 @@ func (element *Element) EncodeChildren(writer *asn1.ASNWriter) errors.Error {
 	if err != nil {
 		return errors.Update(err)
 	}
-	for _, child := range element.children {
+	for _, child := range element.Children {
 		err = writer.StartSequence(asn1.Context(0))
 		if err != nil {
 			return errors.Update(err)
@@ -279,9 +296,36 @@ func (element *Element) GetDirectoryMsg(listener Listener) (*RootElement, errors
 		return nil, errors.Update(err)
 	}
 	if listener != nil {
-		element.listeners[&listener] = listener
+		element.AddListener(listener)
 	}
 	root := NewRoot()
 	root.AddElement(dupElement)
 	return root, nil
+}
+
+func Path2String(path asn1.RelativeOID) string {
+	str := ""
+	for index,number := range(path) {
+		if index == 0 {
+			str = fmt.Sprintf("%d", number)
+		} else {
+			str = fmt.Sprintf("%s.%d", str, number)
+		}
+	}
+	return str
+}
+
+func (element *Element)ToString() string {
+	contentString := "nil"
+	content := element.GetContent()
+	if content != nil {
+		contentString = content.ToString()
+	}
+	children := ""
+	for _,child := range(element.Children) {
+		children = fmt.Sprintf("%s%s\n", children, child.ToString())
+	}
+
+	return fmt.Sprintf("{\n  tag: %d,\n  number: %d,\n  path: %s,\n  content: %s,\n  children: [\n%s]\n}", 
+		element.tag, element.Number, Path2String(element.GetPath()),contentString, children)
 }

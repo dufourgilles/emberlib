@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	. "github.com/dufourgilles/emberlib/logger"
+
 	"github.com/dufourgilles/emberlib/errors"
 )
 
@@ -77,7 +79,6 @@ func CalculateCRC(reader *bytes.Reader) uint16 {
 			break; 
 		}
 		crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ uint16(b)) & 0xFF]) & 0xFFFF;
-		//fmt.Printf("%d - %d\n", b ,crc)
 	}
 	return crc;
 }
@@ -94,7 +95,6 @@ func CalculateCRCCE(reader *bytes.Reader) uint16 {
 			b = S101_XOR ^ nb;
 		}
 		crc = ((crc >> 8) ^ CRC_TABLE[(crc ^ uint16(b)) & 0xFF]) & 0xFFFF;
-		//fmt.Printf("%d - %d\n", b ,crc)
 	}
 	return crc;
 }
@@ -140,12 +140,9 @@ func finalizeBuffer(smartbuf *bytes.Buffer) *bytes.Buffer {
 	// skip first byte
 	reader.ReadByte()
 	var crc = CalculateCRCCE(reader)
-	fmt.Println(crc)
 	crc = (^crc) &0xFFFF
-	fmt.Println(crc)
 	var crc_hi uint8 = uint8(crc >> 8);
 	var crc_lo uint8 = uint8(crc & 0xFF);
-	fmt.Println(crc_hi, crc_lo)
 	if (crc_lo < S101_INV) {
 		smartbuf.WriteByte(crc_lo);
 	} else {
@@ -286,6 +283,7 @@ type ErrorHandler func(errors.Error)
 type S101Decoder struct {
 	escaped bool
 	inbuf bytes.Buffer
+	logger Logger
 	emberbuf bytes.Buffer
 	keepAliveReqHandler PacketHandler
 	keepAliveResHandler PacketHandler
@@ -304,7 +302,14 @@ func NewS101Decoder(
 	s101Decoder.keepAliveResHandler = keepAliveResHandler
 	s101Decoder.emberPacketHandler = emberPacketHandler
 	s101Decoder.errorHandler = errorHandler
+	s101Decoder.logger = NewNullLogger()
 	return &s101Decoder
+}
+
+func (decoder *S101Decoder)SetLogger(logger Logger) {
+	if logger != nil {
+		decoder.logger = logger
+	}
 }
 
 func (decoder *S101Decoder)DecodeBuffer( bufLen int, buf []byte) {
@@ -319,8 +324,8 @@ func (decoder *S101Decoder)DecodeBuffer( bufLen int, buf []byte) {
 			decoder.inbuf.Reset();
 			decoder.escaped = false;
 		} else if b == S101_EOF {
-			fmt.Printf("End of Frame - frame size %d", decoder.inbuf.Len())
-			fmt.Println(decoder.inbuf)
+			decoder.logger.Debug("End of Frame - frame size %d.\n", decoder.inbuf.Len())
+			decoder.logger.Debugln(decoder.inbuf)
 			buffer := make([]byte, decoder.inbuf.Len())
 			decoder.inbuf.Read(buffer)
 			decoder.inbuf.Reset();
@@ -335,7 +340,7 @@ func (decoder *S101Decoder)DecodeBuffer( bufLen int, buf []byte) {
 }
 
 func (decoder *S101Decoder)HandleFrame(buffer []byte) errors.Error {
-	fmt.Printf("Frame parsing. total length %d\n", len(buffer))
+	decoder.logger.Debug("Frame parsing. total length %d.\n", len(buffer))
 	if !ValidateFrame(bytes.NewReader(buffer)) {
 		return errors.New("dropping frame with invalid CRC")
 	}
@@ -356,7 +361,7 @@ func (decoder *S101Decoder)HandleFrame(buffer []byte) errors.Error {
 		return errors.NewError(err)
 	}
 	if (slot != SLOT || message != MSG_EMBER) {
-		return errors.New(fmt.Sprintf("dropping frame (not an ember frame; slot=%d, msg=%d)", slot, message))
+		return errors.New(fmt.Sprintf("dropping frame (not an ember frame; slot=%d, msg=%d).", slot, message))
 	}
 	command,err = frame.ReadByte()
 	if err != nil {
@@ -369,12 +374,12 @@ func (decoder *S101Decoder)HandleFrame(buffer []byte) errors.Error {
 	} else if command == CMD_EMBER {
 		return decoder.HandleEmberFrame(frame);
 	} else {		
-		return errors.New(fmt.Sprintf("Unknown command type %d", command))
+		return errors.New(fmt.Sprintf("Unknown command type %d.", command))
 	}
 }
 
 func (decoder *S101Decoder)HandleEmberFrame(frame *bytes.Reader) errors.Error {
-	fmt.Printf("Ember Frame parsing. Total size %d\n", frame.Len())
+	decoder.logger.Debug("Ember Frame parsing. Total size %d.\n", frame.Len())
 	var emberFrame EmberFrame
 	err := emberFrame.Header.Read(frame)
 	if err != nil { return errors.NewError(err) }
@@ -384,29 +389,29 @@ func (decoder *S101Decoder)HandleEmberFrame(frame *bytes.Reader) errors.Error {
 	}
 
 	if emberFrame.Header.Dtd != DTD_GLOW {
-		return errors.New(fmt.Sprintf("Dropping frame with non-Glow DTD %d", emberFrame.Header.Dtd))
+		return errors.New(fmt.Sprintf("Dropping frame with non-Glow DTD %d.", emberFrame.Header.Dtd))
 	}
 
 	if emberFrame.Header.AppByteLen != 2 {
-		return errors.New("Frame with unknown DTD length")
+		return errors.New("Frame with unknown DTD length.")
 	}
 
 	if emberFrame.Header.Flags & FLAG_FIRST_MULTI_PACKET != 0 {
-		fmt.Println("Ember Frame first multi packet")
+		decoder.logger.Debug("Ember Frame first multi packet.\n")
 		decoder.emberbuf.Reset()
 	}
 
 	if emberFrame.Header.Flags & FLAG_EMPTY_PACKET == 0 {
-		fmt.Printf("Ember Frame NOT empty packet. Size %d to %d\n", frame.Len(), decoder.emberbuf.Len())
+		decoder.logger.Debug("Ember Frame NOT empty packet. Size %d to %d.\n", frame.Len(), decoder.emberbuf.Len())
 		frame.WriteTo(&decoder.emberbuf)
 	}
 	if emberFrame.Header.Flags & FLAG_LAST_MULTI_PACKET != 0 {
-		fmt.Printf("Ember Frame last packet. Total message size %d\n", decoder.emberbuf.Len())
+		decoder.logger.Debug("Ember Frame last packet. Total message size %d.\n", decoder.emberbuf.Len())
 		emberPacket := make([]byte, decoder.emberbuf.Len())
 		decoder.emberbuf.Read(emberPacket)
 		decoder.emberbuf.Reset()
 		decoder.emberPacketHandler(emberPacket)
 	}
-	fmt.Println("Ember Frame parsing complete")
+	decoder.logger.Debug("Ember Frame parsing complete.\n")
 	return nil
 }

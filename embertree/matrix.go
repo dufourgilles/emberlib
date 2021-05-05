@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/asn1"
 	"github.com/dufourgilles/emberlib/errors"
 )
@@ -66,6 +68,22 @@ func (c *MatrixContent) SetType(mtype MatrixType) errors.Error {
 	}
 	c.table[matrixTypeCtx].SetInt(int64(mtype))
 	return nil
+}
+
+func (contents *MatrixContent) SetIdentifier(identifer string) {
+	contents.table[identifierCtx].SetString(identifer)
+}
+
+func (contents *MatrixContent) GetIdentifier() (string, errors.Error) {
+	return contents.table[identifierCtx].GetString()
+}
+
+func (contents *MatrixContent) SetDescription(description string) {
+	contents.table[descriptionCtx].SetString(description)
+}
+
+func (contents *MatrixContent) GetDescription() (string, errors.Error) {
+	return contents.table[descriptionCtx].GetString()
 }
 
 func (c *MatrixContent) GetType() (MatrixType, errors.Error) {
@@ -378,4 +396,32 @@ func (c *MatrixContent) Decode(reader *asn1.ASNReader) errors.Error {
 	}
 
 	return nil
+}
+
+
+func (c *MatrixContent) ToString() string {
+	str:= ""
+	valStr,err := c.GetIdentifier()
+	if err == nil {
+		str = fmt.Sprintf("%s  identifier: %s\n",str, valStr)
+	}
+	valStr,err = c.GetDescription()
+	if err == nil {
+		str = fmt.Sprintf("%s  description: %s\n",str, valStr)
+	}
+	t,err := c.GetType()
+	if t == OneToN {
+		str = fmt.Sprintf(("%s  type: OneToN"))
+	} else if t ==  NToN {
+		str = fmt.Sprintf(("%s  type: NToN"))
+	} else {
+		str = fmt.Sprintf(("%s  type: OneToOne"))
+	}
+	m,err := c.GetMode()
+	if m == Linear {
+		str = fmt.Sprintf(("%s  mode: Linear"))
+	} else {
+		str = fmt.Sprintf(("%s  mode: Non-Linear"))
+	}
+	return fmt.Sprintf("{\n%s}\n", str)
 }

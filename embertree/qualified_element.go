@@ -1,6 +1,7 @@
 package embertree
 
 import (
+	"github.com/dufourgilles/emberlib/errors"
 	"github.com/dufourgilles/emberlib/asn1"
 )
 
@@ -15,8 +16,21 @@ var qualifiedTags = map[uint8]bool{
 	QualifiedMatrixApplication:    true,
 	QualifiedFunctionApplication:  true}
 
+
+func getNumberFromPath(path asn1.RelativeOID) (int, errors.Error) {
+	l := len(path)
+	if l <= 0 {
+		return -1, errors.New("Invalid path.")
+	}
+	return int(path[l-1]),nil
+}
+
 func NewQualifiedElement(tag uint8, path asn1.RelativeOID, contentCreator ContentCreator) *Element {
-	q := &Element{path: path, tag: tag, isMatrix: false, isQualified: true, contentsCreator: contentCreator, contents: contentCreator()}
+	number,err := getNumberFromPath(path)
+	if err != nil { return nil }
+	q := NewElement(tag, number, contentCreator)
+	q.isQualified = true
+	q.path = path
 	return q
 }
 
@@ -52,7 +66,12 @@ func (element *Element) GetPath() asn1.RelativeOID {
 func (element *Element) GetQualifiedDirectoryMsg(listener Listener) *RootElement {
 	path := element.GetPath()
 	dupElement := NewQualifiedElement(element.tag, path, nil)
+	cmd := NewCommand(COMMAND_GETDIRECTORY)
+	dupElement.AddChild(cmd)
 	root := NewRoot()
 	root.AddElement(dupElement)
+	if listener != nil {
+		element.AddListener(listener)
+	}
 	return root
 }

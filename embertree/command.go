@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/errors"
 
 	"github.com/dufourgilles/emberlib/asn1"
@@ -15,13 +17,13 @@ type FieldFlags int
 
 const (
 	SparseFieldFlags      FieldFlags = -2
-	ALLFieldFlags         ValueType  = iota
-	DefaultFieldFlags     ValueType  = iota
-	IdentifierFieldFlags  ValueType  = iota
-	DescriptionFieldFlags ValueType  = iota
-	TreeFieldFlags        ValueType  = iota
-	ValueFieldFlags       ValueType  = iota
-	ConnectionsFieldFlags ValueType  = iota
+	ALLFieldFlags         FieldFlags  = iota
+	DefaultFieldFlags     FieldFlags  = iota
+	IdentifierFieldFlags  FieldFlags  = iota
+	DescriptionFieldFlags FieldFlags  = iota
+	TreeFieldFlags        FieldFlags  = iota
+	ValueFieldFlags       FieldFlags  = iota
+	ConnectionsFieldFlags FieldFlags  = iota
 )
 
 type CommandContents struct {
@@ -62,4 +64,24 @@ func (cc *CommandContents) Decode(reader *asn1.ASNReader) errors.Error {
 	}
 	cc.fieldFlags = FieldFlags(val)
 	return err
+}
+
+func (cc *CommandContents) ToString() string {
+	switch cc.fieldFlags {
+	case ALLFieldFlags:
+		return fmt.Sprintf("  fieldFlags: ALL")
+	case DefaultFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Default")
+	case IdentifierFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Identifier")
+	case DescriptionFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Description")
+	case TreeFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Tree")
+	case ValueFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Value")
+	case ConnectionsFieldFlags:
+		return fmt.Sprintf("  fieldFlags: Connections")
+	}
+	return fmt.Sprintf("  fieldFlags: %d", cc.fieldFlags)
 }

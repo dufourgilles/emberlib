@@ -6,6 +6,7 @@ import (
 
 	"github.com/dufourgilles/emberlib/asn1"
 	"github.com/dufourgilles/emberlib/embertree"
+	"github.com/dufourgilles/emberlib/errors"
 )
 
 func TestEncodeRoot(t *testing.T) {
@@ -172,5 +173,26 @@ func TestDecodeRootMatrix(t *testing.T) {
 		if target.Number != encodedTargets[i] {
 			t.Errorf("Invalid target at %d. Got %d instead of %d.", i, target.Number, encodedTargets[i])
 		}
+	}
+}
+
+type RootListener struct {
+
+}
+
+func (rl *RootListener) Receive(interface{}, errors.Error) {
+
+}
+
+func TestListeners(t *testing.T) {
+	listener := RootListener{}
+	root := embertree.NewTree()
+	root.AddListener(&listener)
+	if !root.HasListner(&listener) {
+		t.Errorf("Add Listener failed")
+	}
+	root.RemoveListener(&listener)
+	if root.HasListner(&listener) {
+		t.Errorf("Remove Listener failed")
 	}
 }

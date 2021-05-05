@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/errors"
 
 	"github.com/dufourgilles/emberlib/asn1"
@@ -220,4 +222,69 @@ func (pc *ParameterContents) Decode(reader *asn1.ASNReader) errors.Error {
 		}
 	}
 	return nil
+}
+
+func (contents *ParameterContents) ToString() string {
+	str := ""
+	valStr,err := contents.GetIdentifier()
+	if err == nil {
+		str = fmt.Sprintf("%s  identifier: %s\n",str, valStr)
+	}
+	valStr,err = contents.GetDescription()
+	if err == nil {
+		str = fmt.Sprintf("%s  description: %s\n",str, valStr)
+	}
+	valObject := contents.GetValueObject()
+	if valObject != nil && valObject.isSet {
+		str = fmt.Sprintf("%  svalue: %s\n",str, valObject.ToString())
+	}
+	valObject = contents.GetMinimumObject()
+	if valObject != nil && valObject.isSet {
+		str = fmt.Sprintf("%  sminimum: %s\n",str, valObject.ToString())
+	}
+	valObject = contents.GetMaximumObject()
+	if valObject != nil && valObject.isSet {
+		str = fmt.Sprintf("%s  maximum: %s\n",str, valObject.ToString())
+	}
+	valObject = contents.GetDefaultObject()
+	if valObject != nil && valObject.isSet {
+		str = fmt.Sprintf("%s  default: %s\n",str, valObject.ToString())
+	}
+	valStr,err = contents.GetAccess()
+	if err != nil {
+		str = fmt.Sprintf("%s  access: %s\n",str,valStr)
+	}
+	valStr,err = contents.GetFormat()
+	if err != nil {
+		str = fmt.Sprintf("%s  format: %s\n",str,valStr)
+	}
+	valStr,err = contents.GetEnumeration()
+	if err != nil {
+		str = fmt.Sprintf("%s  enumeration: %s\n",str,valStr)
+	}
+	valInt,err := contents.GetFactor()
+	if err != nil {
+		str = fmt.Sprintf("%s  factor: %ll\n",str,valInt)
+	}
+	valInt,err = contents.GetStep()
+	if err != nil {
+		str = fmt.Sprintf("%s  step: %ll\n",str,valInt)
+	}
+	valBool,err := contents.GetOnline()
+	if err != nil {
+		if valBool {
+			str = fmt.Sprintf("%s  isonline: true\n",str)
+		} else {
+			str = fmt.Sprintf("%s  isonline: false\n",str)
+		}
+	}
+	valStr,err = contents.GetType()
+	if err != nil {
+		str = fmt.Sprintf("%s  type: %s\n",str,valStr)
+	}
+	valInt,err = contents.GetStreamIdentifier()
+	if err != nil {
+		str = fmt.Sprintf("%s  streamIdentifier: %ll\n",str,valInt)
+	}
+	return fmt.Sprintf("{\n%s}\n", str)
 }

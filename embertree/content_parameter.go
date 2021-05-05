@@ -1,6 +1,8 @@
 package embertree
 
 import (
+	"fmt"
+
 	"github.com/dufourgilles/emberlib/asn1"
 	"github.com/dufourgilles/emberlib/errors"
 )
@@ -51,6 +53,53 @@ type ContentParameter struct {
 
 func NewContentParameter() *ContentParameter {
 	return &ContentParameter{isSet: false}
+}
+
+func (cp *ContentParameter)ToString() string {
+	t := cp.GetType()
+	switch t {
+	case ValueTypeBool:
+		val,_ := cp.GetBool()
+		var str string
+		if val {
+			str = "true"
+		} else {
+			str = "false"
+		}
+		return fmt.Sprintf("%s", str)
+	case ValueTypeString:
+		str,_ := cp.GetString()
+		return str
+	case ValueTypeInteger:
+		i,_ := cp.GetInt()
+		return fmt.Sprintf("%d", i)
+	case ValueTypeOID:
+		str := ""
+		oid,_ := cp.GetRelativeOID()
+		for index,val := range(oid) {
+			if index == 0 {
+				str = fmt.Sprintf("%d",val)
+			} else {
+				str = fmt.Sprintf("%s.%d", str, val)
+			}
+		}
+		return str
+	case ValueTypeReal:
+		r,_ := cp.GetReal()
+		return fmt.Sprintf("%f", r)
+	case ValueTypeBuffer:
+		b,_ := cp.GetBuffer()
+		str := ""
+		for index,x := range(b) {
+			if index == 0 {
+				str = fmt.Sprintf("%x", x)
+			} else {
+				str = fmt.Sprintf("%s%x", str, x)
+			}
+		}
+		return str
+	}
+	return ""
 }
 
 func (cp *ContentParameter) GetType() ValueType {
